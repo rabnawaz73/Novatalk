@@ -1,5 +1,5 @@
-name: myapp
-description: "A new Flutter project."
+name: novatalk
+description: "An AI Featured Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -43,6 +43,10 @@ dependencies:
   salomon_bottom_bar: ^3.3.2
   hive:
   hive_flutter:
+  firebase_core: 
+  firebase_auth: 
+  cloud_firestore:
+  firebase_storage: 
 
 dev_dependencies:
   flutter_test:
@@ -54,10 +58,12 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^4.0.0
+  google_sign_in: ^5.4.2
+  flutter_launcher_icons:
 flutter_icons:
   android: true
   ios: true
-  image_path: "assets/lodo.png"
+  image_path: "assets/logo.png"
   adaptive_icon_background: "assets/alhijrah.jpg"
   adaptive_icon_foreground: "assets/alhijrah.jpg"
 

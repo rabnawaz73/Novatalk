@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:dash_chat_2/dash_chat_2.dart';
 import 'package:flutter_gemini/flutter_gemini.dart';
 import 'package:hive/hive.dart';
-import 'package:myapp/consts.dart';
+import 'package:novatalk/consts.dart';
 import 'chat_history.dart';
 
 class DashChatitle extends StatefulWidget {
@@ -36,6 +36,7 @@ class _DashChatitleState extends State<DashChatitle> {
     _createNewChat();
   }
 
+  // Create a new chat and store it in Hive
   Future<void> _createNewChat() async {
     setState(() {
       chatMessages = [];
@@ -91,7 +92,7 @@ class _DashChatitleState extends State<DashChatitle> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('AI in Al-Hijrah'),
+        title: const Text('NovaTalk'),
         backgroundColor: Colors.indigo,
         centerTitle: true,
         elevation: 5,
@@ -105,14 +106,16 @@ class _DashChatitleState extends State<DashChatitle> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => ChatHistory(onOpenChat: _openExistingChat),
+                    builder: (context) =>
+                        ChatHistory(onOpenChat: _openExistingChat),
                   ),
                 );
               }
             },
             itemBuilder: (context) => [
               const PopupMenuItem(value: 'new', child: Text('New Chat')),
-              const PopupMenuItem(value: 'history', child: Text('Chat History')),
+              const PopupMenuItem(
+                  value: 'history', child: Text('Chat History')),
             ],
           ),
         ],
@@ -126,6 +129,11 @@ class _DashChatitleState extends State<DashChatitle> {
           ),
         ),
         child: DashChat(
+          readOnly: false,
+          messageOptions: const MessageOptions(
+            showOtherUsersAvatar: false,
+            showOtherUsersName: false,
+          ),
           currentUser: currentUser,
           messages: chatMessages,
           typingUsers: isGeminiTyping ? [geminiUser] : [],
@@ -149,6 +157,7 @@ class _DashChatitleState extends State<DashChatitle> {
     );
   }
 
+  
   Future<void> _handleResponse(String query) async {
     setState(() {
       isGeminiTyping = true;
@@ -163,7 +172,7 @@ class _DashChatitleState extends State<DashChatitle> {
 
         if (responsePart.isNotEmpty) {
           completeResponse += responsePart;
-
+          containsCode(completeResponse);
           setState(() {
             isGeminiTyping = true;
           });
@@ -184,5 +193,31 @@ class _DashChatitleState extends State<DashChatitle> {
     setState(() {
       isGeminiTyping = false;
     });
+  }
+
+  bool containsCode(String response) {
+    // Check for code block delimiters
+    if (response.contains('```') || response.contains('`')) {
+      return true;
+    }
+
+    // Check for common programming syntax patterns
+    final codePatterns = [
+      RegExp(r'\bclass\b'), // Matches "class"
+      RegExp(r'\bvoid\b'), // Matches "void"
+      RegExp(r'\bfunction\b'), // Matches "function"
+      RegExp(r'[{}();\[\]]'), // Matches common code symbols
+      RegExp(r'//'), // Matches comments
+      RegExp(r'^[\s]*[a-zA-Z]+\(.*\)',
+          multiLine: true), // Matches function calls
+    ];
+
+    for (final pattern in codePatterns) {
+      if (pattern.hasMatch(response)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 }

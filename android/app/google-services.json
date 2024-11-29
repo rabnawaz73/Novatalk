@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "473175295511",
+    "project_id": "novatalk-ai-app-a448d",
+    "storage_bucket": "novatalk-ai-app-a448d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:473175295511:android:15aa505643efd83fe6fe52",
+        "android_client_info": {
+          "package_name": "com.rabnawaz.novatalk"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCWwz4OxsGZn6yHftN6I6UTJqKJjpg_WPE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

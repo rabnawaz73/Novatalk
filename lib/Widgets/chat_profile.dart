@@ -8,6 +8,7 @@ class ChatProfile extends StatefulWidget {
 }
 
 class _ChatProfileState extends State<ChatProfile> {
+  
   String _userName = "AL-Hijrah Rabnawaz";
   String _email = "user@example.com";
   final String _profileImage = 'assets/logo.png';

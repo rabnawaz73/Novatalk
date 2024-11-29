@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:myapp/Widgets/chat_widget.dart';
-import 'package:myapp/Widgets/chat_profile.dart';
+import 'package:novatalk/Widgets/chat_widget.dart';
+import 'package:novatalk/Widgets/chat_profile.dart';
 
 class BottomBar extends StatefulWidget {
   const BottomBar({super.key});
