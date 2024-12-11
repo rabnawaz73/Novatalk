@@ -48,6 +48,7 @@ class _SignUpPageState extends State<SignUpPage> {
         email: email,
         password: password,
       );
+      
 
       // Save user details to Firestore
       await _firestore.collection('users').doc(userCredential.user?.uid).set({
@@ -61,7 +62,6 @@ class _SignUpPageState extends State<SignUpPage> {
 
       _showSnackbar("Sign-Up Successful!");
 
-      
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const BottomBar()),
@@ -85,16 +85,16 @@ class _SignUpPageState extends State<SignUpPage> {
       );
 
       UserCredential userCredential =
-          await _auth.signInWithCredential(credential);
+      await _auth.signInWithCredential(credential);
 
+      
+      
       // Save user details to Firestore
-      await _firestore
-          .collection('users')
-          .doc(userCredential.user?.uid)
-          .set({
+      await _firestore.collection('users').doc(userCredential.user?.uid).set({
         'name': googleUser.displayName,
         'email': googleUser.email,
         'profileImage': googleUser.photoUrl,
+        
       }, SetOptions(merge: true));
 
       _showSnackbar("Signed up with Google successfully!");
@@ -106,12 +106,8 @@ class _SignUpPageState extends State<SignUpPage> {
       );
     } catch (e) {
       _showSnackbar("Failed to sign up with Google: $e");
+      print("Found Exception $e");
     }
-  }
-
-  Future<void> _signUpWithFacebook() async {
-    // Facebook SDK integration logic goes here
-    _showSnackbar("Facebook sign-up is under development.");
   }
 
   void _showSnackbar(String message) {
@@ -221,8 +217,8 @@ class _SignUpPageState extends State<SignUpPage> {
                 const SizedBox(height: 15),
 
                 // Social Sign-Up Options
-                Row(
-                  children: const [
+                const Row(
+                  children: [
                     Expanded(
                       child: Divider(
                         color: Colors.white,
@@ -253,11 +249,6 @@ class _SignUpPageState extends State<SignUpPage> {
                       icon: "assets/google_icon.png",
                       text: "Google",
                       onPressed: _signUpWithGoogle,
-                    ),
-                    _buildSocialButton(
-                      icon: "assets/facebook_icon.png",
-                      text: "Facebook",
-                      onPressed: _signUpWithFacebook,
                     ),
                   ],
                 ),

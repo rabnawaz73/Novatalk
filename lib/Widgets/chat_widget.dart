@@ -158,42 +158,41 @@ class _DashChatitleState extends State<DashChatitle> {
   }
 
   
-  Future<void> _handleResponse(String query) async {
-    setState(() {
-      isGeminiTyping = true;
-    });
+Future<void> _handleResponse(String query) async {
+  setState(() {
+    isGeminiTyping = true;
+  });
 
-    String completeResponse = "";
+  String completeResponse = "";
 
-    try {
-      await for (var event in gemini.streamGenerateContent(query)) {
-        String responsePart =
-            event.content?.parts?.map((part) => part.text).join('') ?? '';
+  try {
+    await for (final response in gemini.promptStream(parts: [Part.text(query)])) {
+      String? responsePart = response!.output;
 
-        if (responsePart.isNotEmpty) {
-          completeResponse += responsePart;
-          containsCode(completeResponse);
-          setState(() {
-            isGeminiTyping = true;
-          });
-        }
+      if (responsePart!.isNotEmpty) {
+        completeResponse += responsePart;
+        containsCode(completeResponse);
+        setState(() {
+          isGeminiTyping = true;
+        });
       }
-    } catch (e) {
-      completeResponse = "Error occurred: $e";
     }
-
-    final response = ChatMessage(
-      text: completeResponse.isNotEmpty ? completeResponse : "No response",
-      user: geminiUser,
-      createdAt: DateTime.now(),
-    );
-
-    await _saveMessage(response);
-
-    setState(() {
-      isGeminiTyping = false;
-    });
+  } catch (e) {
+    completeResponse = "Error occurred: $e";
   }
+
+  final response = ChatMessage(
+    text: completeResponse.isNotEmpty ? completeResponse : "No response",
+    user: geminiUser,
+    createdAt: DateTime.now(),
+  );
+
+  await _saveMessage(response);
+
+  setState(() {
+    isGeminiTyping = false;
+  });
+}
 
   bool containsCode(String response) {
     // Check for code block delimiters
