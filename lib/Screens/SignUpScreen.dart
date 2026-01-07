@@ -1,10 +1,17 @@
+// ignore_for_file: file_names
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+// ignore: depend_on_referenced_packages
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:hive/hive.dart';
 import 'package:novatalk/Screens/SignInScreen.dart';
 import 'package:novatalk/Screens/bottom_bar.dart';
+import 'package:novatalk/Widgets/common/custom_textfield.dart';
+import 'package:novatalk/Widgets/common/social_button.dart';
+
+
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -19,62 +26,139 @@ class _SignUpPageState extends State<SignUpPage> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
-
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Hive box for storing credentials
-  final Box credentialsBox = Hive.box('credentials');
+  late final Box credentialsBox;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeHive();
+  }
+
+  Future<void> _initializeHive() async {
+    credentialsBox = Hive.isBoxOpen('credentials')
+        ? Hive.box('credentials')
+        : await Hive.openBox('credentials');
+  }
 
   Future<void> _signUp() async {
-    final String name = _nameController.text.trim();
-    final String email = _emailController.text.trim();
-    final String password = _passwordController.text;
+  final String name = _nameController.text.trim();
+  final String email = _emailController.text.trim();
+  final String password = _passwordController.text;
 
-    if (name.isEmpty || email.isEmpty || password.isEmpty) {
-      _showSnackbar("Please fill all the fields.");
-      return;
-    }
+  if (name.isEmpty || email.isEmpty || password.isEmpty) {
+    _showSnackbar("Please fill all the fields.");
+    return;
+  }
 
-    if (password != _confirmPasswordController.text) {
-      _showSnackbar("Passwords do not match.");
-      return;
-    }
+  if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(email)) {
+    _showSnackbar("Please enter a valid email address.");
+    return;
+  }
+
+  if (password.length < 8) {
+    _showSnackbar("Password must be at least 8 characters long.");
+    return;
+  }
+
+  if (password != _confirmPasswordController.text) {
+    _showSnackbar("Passwords do not match.");
+    return;
+  }
 
     try {
-      // Create user with Firebase Authentication
-      UserCredential userCredential =
-          await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Center(
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            CircleAvatar(
+              radius: 40,
+              backgroundColor: Colors.grey.shade300,
+              child: CircularProgressIndicator(color: Colors.indigo),
+            ),
+          ],
+        ),
+      ),
+    );
 
-      // Save user details to Firestore
-      await _firestore.collection('users').doc(userCredential.user?.uid).set({
-        'name': name,
-        'email': email,
-        'profileImage': "",
-      });
+    // Step 1: Create the user
+    UserCredential userCredential =
+        await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
 
-      credentialsBox.put('user_email', email);
-      credentialsBox.put('user_password', password);
+    // Step 4: Store user data in Firestore
+    await _firestore.collection('users').doc(userCredential.user?.uid).set({
+      'name': name,
+      'email': email,
+    });
 
-      _showSnackbar("Sign-Up Successful!");
+    Navigator.pop(context); // Remove the loading indicator
+    _showSnackbar("Sign-Up Successful!");
+    _navigateToPage(const BottomBar());
+  } on FirebaseAuthException catch (e) {
+    Navigator.pop(context); // Ensure loading indicator is removed
+    String errorMessage;
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const BottomBar()),
-      );
-    } catch (e) {
-      _showSnackbar("Failed to sign up: $e");
+    switch (e.code) {
+      case 'email-already-in-use':
+        errorMessage =
+            "The email address is already in use by another account.";
+        break;
+      case 'invalid-email':
+        errorMessage = "The email address is not valid.";
+        break;
+      case 'weak-password':
+        errorMessage =
+            "The password is too weak. Please choose a stronger password.";
+        break;
+      default:
+        errorMessage =
+            "An unexpected error occurred. Please check your connection and try again.";
+    }
+
+    _showSnackbar(errorMessage);
+
+    // Rollback: Delete partially created user if any
+    if (_auth.currentUser != null) {
+      await _auth.currentUser!.delete();
+    }
+  } on FirebaseException catch (e) {
+    Navigator.pop(context); // Ensure loading indicator is removed
+    _showSnackbar(
+        "A server error occurred: ${e.message ?? 'Unknown error'}. Please try again.");
+
+    // Rollback: Delete partially created user if any
+    if (_auth.currentUser != null) {
+      await _auth.currentUser!.delete();
+    }
+  } catch (e) {
+    Navigator.pop(context); // Ensure loading indicator is removed
+    _showSnackbar("An unexpected error occurred. Please try again.");
+    debugPrint("Error: $e");
+
+    // Rollback: Delete partially created user if any
+    if (_auth.currentUser != null) {
+      await _auth.currentUser!.delete();
     }
   }
+}
+
+
+
+
 
   Future<void> _signUpWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-      if (googleUser == null) return; // User canceled sign-in
+      if (googleUser == null) return;
 
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
@@ -85,38 +169,54 @@ class _SignUpPageState extends State<SignUpPage> {
       );
 
       UserCredential userCredential =
-      await _auth.signInWithCredential(credential);
+          await _auth.signInWithCredential(credential);
 
-      
-      
-      // Save user details to Firestore
       await _firestore.collection('users').doc(userCredential.user?.uid).set({
         'name': googleUser.displayName,
         'email': googleUser.email,
         'profileImage': googleUser.photoUrl,
-        
       }, SetOptions(merge: true));
 
       _showSnackbar("Signed up with Google successfully!");
-
-      // Navigate to BottomBar
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const BottomBar()),
-      );
+      _navigateToPage(const BottomBar());
     } catch (e) {
-      _showSnackbar("Failed to sign up with Google: $e");
-      print("Found Exception $e");
+      _showSnackbar("Failed to sign up with Google. Please try again.");
+      debugPrint("Google Sign-up Error: $e");
     }
   }
 
   void _showSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      duration: const Duration(seconds: 3),
+      content: Text(
+        message,
+        style: const TextStyle(fontSize: 16),
       ),
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: Colors.indigo.shade600,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+      ),
+    ),
+  );
+}
+
+
+  void _navigateToPage(Widget page) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => page),
     );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -141,12 +241,21 @@ class _SignUpPageState extends State<SignUpPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Logo
                 Column(
                   children: [
-                    Image.asset(
-                      'assets/logo.png',
-                      height: 80,
+                    InkWell(
+                      child: CircleAvatar(
+                        radius: 40,
+                        backgroundColor: Colors.white,
+                        child: ClipOval(
+                                child: Image.asset(
+                                  'lib/logo.png',
+                                  height: 80,
+                                  width: 80,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                      ),
                     ),
                     const SizedBox(height: 10),
                     const Text(
@@ -160,42 +269,33 @@ class _SignUpPageState extends State<SignUpPage> {
                   ],
                 ),
                 const SizedBox(height: 20),
-
-                // Name Field
-                _buildTextField(
+                CustomTextField(
                   controller: _nameController,
                   hintText: "Full Name",
                   icon: Icons.person_outline,
                 ),
                 const SizedBox(height: 15),
-
-                // Email Field
-                _buildTextField(
+                CustomTextField(
                   controller: _emailController,
                   hintText: "Email Address",
                   icon: Icons.email_outlined,
                   keyboardType: TextInputType.emailAddress,
                 ),
                 const SizedBox(height: 15),
-
-                // Password Field
-                _buildTextField(
+                CustomTextField(
                   controller: _passwordController,
                   hintText: "Password",
                   icon: Icons.lock_outline,
                   obscureText: true,
                 ),
                 const SizedBox(height: 15),
-
-                // Confirm Password Field
-                _buildTextField(
+                CustomTextField(
                   controller: _confirmPasswordController,
                   hintText: "Confirm Password",
                   icon: Icons.lock_outline,
                   obscureText: true,
                 ),
                 const SizedBox(height: 30),
-
                 ElevatedButton(
                   onPressed: _signUp,
                   style: ElevatedButton.styleFrom(
@@ -215,8 +315,6 @@ class _SignUpPageState extends State<SignUpPage> {
                   ),
                 ),
                 const SizedBox(height: 15),
-
-                // Social Sign-Up Options
                 const Row(
                   children: [
                     Expanded(
@@ -241,38 +339,33 @@ class _SignUpPageState extends State<SignUpPage> {
                   ],
                 ),
                 const SizedBox(height: 15),
-
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _buildSocialButton(
+                    SocialButton(
                       icon: "assets/google_icon.png",
                       text: "Google",
                       onPressed: _signUpWithGoogle,
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
-
+                const SizedBox(height: 15),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text(
                       "Already have an account?",
-                      style: TextStyle(color: Colors.black),
+                      style: TextStyle(color: Color.fromARGB(255, 12, 12, 12)),
                     ),
                     TextButton(
                       onPressed: () {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => const SignInPage()),
-                        );
+                        // Navigate to LoginPage
+                        _navigateToPage(const SignInPage());
                       },
                       child: const Text(
-                        "Sign In",
+                        "Log In",
                         style: TextStyle(
-                          color: Color.fromARGB(255, 101, 201, 248),
+                          color: Color.fromARGB(255, 94, 214, 250),
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -283,60 +376,6 @@ class _SignUpPageState extends State<SignUpPage> {
             ),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hintText,
-    required IconData icon,
-    bool obscureText = false,
-    TextInputType keyboardType = TextInputType.text,
-  }) {
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      style: const TextStyle(color: Colors.black),
-      decoration: InputDecoration(
-        filled: true,
-        fillColor: Colors.white,
-        hintText: hintText,
-        prefixIcon: Icon(icon, color: Colors.indigo),
-        hintStyle: const TextStyle(color: Colors.grey),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(25),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-      ),
-    );
-  }
-
-  Widget _buildSocialButton({
-    required String icon,
-    required String text,
-    required VoidCallback onPressed,
-  }) {
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Image.asset(
-        icon,
-        height: 20,
-        width: 20,
-      ),
-      label: Text(
-        text,
-        style: const TextStyle(color: Colors.white),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.indigo.shade600,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(25),
-        ),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
       ),
     );
   }

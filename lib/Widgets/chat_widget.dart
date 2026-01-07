@@ -1,8 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:dash_chat_2/dash_chat_2.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_gemini/flutter_gemini.dart';
 import 'package:hive/hive.dart';
-import 'package:novatalk/consts.dart';
+import 'package:novatalk/Widgets/_drawer.dart';
 import 'chat_history.dart';
 
 class DashChatitle extends StatefulWidget {
@@ -13,17 +15,14 @@ class DashChatitle extends StatefulWidget {
 }
 
 class _DashChatitleState extends State<DashChatitle> {
-  final Gemini gemini = Gemini.init(apiKey: Gemini_KEY);
+  final Gemini gemini = Gemini.init(apiKey: dotenv.env['GEMINI_API_KEY']!);
   final ChatUser geminiUser = ChatUser(
     id: '2',
     firstName: 'Gemini',
   );
-  final ChatUser currentUser = ChatUser(
-    id: '1',
-    firstName: 'AL-Hijrah',
-    lastName: 'Rabnawaz',
-    profileImage: 'assets/logo.png',
-  );
+
+
+  late ChatUser currentUser;
 
   List<ChatMessage> chatMessages = [];
   final chatBox = Hive.box('chats');
@@ -33,10 +32,24 @@ class _DashChatitleState extends State<DashChatitle> {
   @override
   void initState() {
     super.initState();
+    User? currentFirebaseUser = FirebaseAuth.instance.currentUser;
+
+    if (currentFirebaseUser != null) {
+      currentUser = ChatUser(
+        id: currentFirebaseUser.uid,
+        firstName: currentFirebaseUser.displayName ?? 'Guest User',
+        lastName: currentFirebaseUser.email ?? "guest@example.com",
+        profileImage: currentFirebaseUser.photoURL ?? 'assets/logo.png',
+      );
+    } else {
+      currentUser = ChatUser(
+        id: '0',
+        firstName: 'Guest',
+      );
+    }
     _createNewChat();
   }
 
-  // Create a new chat and store it in Hive
   Future<void> _createNewChat() async {
     setState(() {
       chatMessages = [];
@@ -96,6 +109,12 @@ class _DashChatitleState extends State<DashChatitle> {
         backgroundColor: Colors.indigo,
         centerTitle: true,
         elevation: 5,
+        leading: Builder(
+          builder: (context) => IconButton(
+            onPressed: () => Scaffold.of(context).openDrawer(),
+            icon: Icon(Icons.menu, color: Colors.indigo.shade100),
+          ),
+        ),
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
@@ -119,6 +138,9 @@ class _DashChatitleState extends State<DashChatitle> {
             ],
           ),
         ],
+      ),
+      drawer: CustomDrawer(
+        currentUser: currentUser,
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -157,42 +179,42 @@ class _DashChatitleState extends State<DashChatitle> {
     );
   }
 
-  
-Future<void> _handleResponse(String query) async {
-  setState(() {
-    isGeminiTyping = true;
-  });
+  Future<void> _handleResponse(String query) async {
+    setState(() {
+      isGeminiTyping = true;
+    });
 
-  String completeResponse = "";
+    String completeResponse = "";
 
-  try {
-    await for (final response in gemini.promptStream(parts: [Part.text(query)])) {
-      String? responsePart = response!.output;
-
-      if (responsePart!.isNotEmpty) {
-        completeResponse += responsePart;
-        containsCode(completeResponse);
-        setState(() {
-          isGeminiTyping = true;
-        });
+    try {
+      await for (final response
+          in gemini.promptStream(parts: [Part.text(query)])) {
+        String? responsePart = response?.output;
+    
+        if (responsePart != null && responsePart.isNotEmpty) {
+          completeResponse += responsePart;
+          containsCode(completeResponse);
+          setState(() {
+            isGeminiTyping = true;
+          });
+        }
       }
+    } catch (e) {
+      completeResponse = "Error occurred: $e";
     }
-  } catch (e) {
-    completeResponse = "Error occurred: $e";
+
+    final response = ChatMessage(
+      text: completeResponse.isNotEmpty ? completeResponse : "No response",
+      user: geminiUser,
+      createdAt: DateTime.now(),
+    );
+
+    await _saveMessage(response);
+
+    setState(() {
+      isGeminiTyping = false;
+    });
   }
-
-  final response = ChatMessage(
-    text: completeResponse.isNotEmpty ? completeResponse : "No response",
-    user: geminiUser,
-    createdAt: DateTime.now(),
-  );
-
-  await _saveMessage(response);
-
-  setState(() {
-    isGeminiTyping = false;
-  });
-}
 
   bool containsCode(String response) {
     // Check for code block delimiters

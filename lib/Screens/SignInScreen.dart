@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:novatalk/Screens/SignUpScreen.dart';
 import 'package:novatalk/Screens/bottom_bar.dart';
+import 'package:novatalk/Widgets/common/custom_textfield.dart';
+import 'package:novatalk/Widgets/common/social_button.dart';
 
 class SignInPage extends StatefulWidget {
   const SignInPage({super.key});
@@ -20,7 +22,7 @@ class _SignInPageState extends State<SignInPage> {
   Future<void> _signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-      if (googleUser == null) return; // User canceled the sign-in
+      if (googleUser == null) return;
 
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
@@ -41,11 +43,6 @@ class _SignInPageState extends State<SignInPage> {
     }
   }
 
-  Future<void> _signInWithFacebook() async {
-    
-    _showSnackbar("Facebook login is under development.");
-  }
-
   Future<void> _signInWithEmail() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -63,16 +60,80 @@ class _SignInPageState extends State<SignInPage> {
         context,
         MaterialPageRoute(builder: (context) => const BottomBar()),
       );
+    } on FirebaseAuthException catch (e) {
+      String message;
+      switch (e.code) {
+        case 'user-not-found':
+          message = 'No user found for that email.';
+          break;
+        case 'wrong-password':
+          message = 'Wrong password provided for that user.';
+          break;
+        case 'invalid-email':
+          message = 'The email address is not valid.';
+          break;
+        default:
+          message = 'Failed to sign in. Please check your credentials.';
+      }
+      _showSnackbar(message);
     } catch (e) {
-      _showSnackbar("Failed to sign in: $e");
+      _showSnackbar("An unexpected error occurred. Please try again.");
     }
+  }
+
+  void _forgotPassword() {
+    final TextEditingController forgotPasswordController =
+        TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Forgot Password"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+                "Enter your email address to receive a password reset link."),
+            const SizedBox(height: 16),
+            TextField(
+              controller: forgotPasswordController,
+              decoration: const InputDecoration(
+                labelText: "Email",
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final email = forgotPasswordController.text.trim();
+              if (email.isNotEmpty) {
+                try {
+                  await _auth.sendPasswordResetEmail(email: email);
+                  Navigator.pop(context);
+                  _showSnackbar("Password reset link sent to $email");
+                } on FirebaseAuthException catch (e) {
+                  Navigator.pop(context);
+                  _showSnackbar("Error: ${e.message}");
+                }
+              }
+            },
+            child: const Text("Send"),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showSnackbar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        duration: const Duration(seconds: 2),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -120,7 +181,7 @@ class _SignInPageState extends State<SignInPage> {
                 const SizedBox(height: 20),
 
                 // Email TextField
-                _buildTextField(
+                CustomTextField(
                   controller: _emailController,
                   hintText: "Email Address",
                   icon: Icons.email_outlined,
@@ -129,7 +190,7 @@ class _SignInPageState extends State<SignInPage> {
                 const SizedBox(height: 15),
 
                 // Password TextField
-                _buildTextField(
+                CustomTextField(
                   controller: _passwordController,
                   hintText: "Password",
                   icon: Icons.lock_outline,
@@ -154,10 +215,7 @@ class _SignInPageState extends State<SignInPage> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () {
-                      // Add forgot password functionality
-                      _showSnackbar("Forgot password clicked.");
-                    },
+                    onPressed: _forgotPassword,
                     child: const Text(
                       "Forgot Password?",
                       style: TextStyle(
@@ -220,15 +278,10 @@ class _SignInPageState extends State<SignInPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _buildSocialButton(
+                    SocialButton(
                       icon: "assets/google_icon.png",
                       text: "Google",
                       onPressed: _signInWithGoogle,
-                    ),
-                    _buildSocialButton(
-                      icon: "assets/facebook_icon.png",
-                      text: "Facebook",
-                      onPressed: _signInWithFacebook,
                     ),
                   ],
                 ),
@@ -263,58 +316,6 @@ class _SignInPageState extends State<SignInPage> {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hintText,
-    required IconData icon,
-    bool obscureText = false,
-    Widget? suffixIcon,
-    TextInputType keyboardType = TextInputType.text,
-  }) {
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      decoration: InputDecoration(
-        filled: true,
-        fillColor: Colors.white,
-        hintText: hintText,
-        prefixIcon: Icon(icon, color: Colors.indigo),
-        suffixIcon: suffixIcon,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(25),
-          borderSide: BorderSide.none,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSocialButton({
-    required String icon,
-    required String text,
-    required VoidCallback onPressed,
-  }) {
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Image.asset(
-        icon,
-        height: 20,
-        width: 20,
-      ),
-      label: Text(
-        text,
-        style: const TextStyle(fontSize: 16),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(25),
         ),
       ),
     );
